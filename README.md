@@ -18,3 +18,8 @@ Each capability includes protocol-level checks and a documented local workflow. 
 ## Customer tools
 
 Run `uv run --locked python -m gateway.mcp_server` with an MCP stdio client. [Protocol and validation details](docs/mcp-server.md) explain the synthetic fixtures and error boundaries.
+
+## Gateways
+
+- [MCP security proxy](docs/mcp-proxy.md): bearer roles and transparent tool forwarding.
+- [Streaming guardrail](docs/streaming.md): bounded cross-chunk redaction and SSE cleanup.

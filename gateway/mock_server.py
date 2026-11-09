@@ -1,8 +1,11 @@
 """Provide deterministic downstream fixtures without external service calls."""
 
+import asyncio
+import json
+
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 
@@ -25,4 +28,24 @@ async def mcp(request: Request):
     return JSONResponse({"jsonrpc": "2.0", "id": payload["id"], "result": result})
 
 
-app = Starlette(routes=[Route("/mcp", mcp, methods=["POST"])])
+async def stream(request: Request):
+    """Split synthetic PII across deltas to expose chunk-boundary mistakes."""
+
+    async def chunks():
+        """Delay chunks so tests can measure output before stream completion."""
+        text = (
+            "Hello café. Contact person@example.com, SSN 123-45-6789, "
+            "card 4111 1111 1111 1111. Done."
+        )
+        for offset in range(0, len(text), 3):
+            payload = {"choices": [{"delta": {"content": text[offset : offset + 3]}}]}
+            yield ("data: " + json.dumps(payload, ensure_ascii=False) + "\n\n").encode()
+            await asyncio.sleep(0.01)
+        yield b"data: [DONE]\n\n"
+
+    return StreamingResponse(chunks(), media_type="text/event-stream")
+
+
+app = Starlette(
+    routes=[Route("/mcp", mcp, methods=["POST"]), Route("/stream", stream, methods=["POST"])]
+)
