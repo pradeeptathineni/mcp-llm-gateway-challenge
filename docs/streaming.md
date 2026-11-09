@@ -16,6 +16,8 @@ The gateway accepts OpenAI-style SSE deltas from `LLM_STREAM_URL` and emits norm
 
 The redactor retains one unfinished lexical candidate, at most 512 characters. Ordinary words are released at their next safe delimiter. Numeric candidates may include whitespace or hyphens. A candidate over the limit emits one `[REDACTED]` marker and is suppressed until its boundary. This deliberately prefers over-redaction to leaking a long email prefix.
 
+The stream also stops if raw content exceeds the conservative UTF-8 output-byte allowance (`max_tokens`, default 256). This is stricter than provider tokens, but does not trust a provider to honor its requested output bound.
+
 There is no whole-response buffer. Provider events are limited to 64 KiB, and UTF-8 decoding preserves characters split across byte chunks. The asynchronous iterator follows downstream demand rather than consuming the provider in a background task. Completion, failures, and consumer cancellation close the upstream response.
 
 Immediate emission of every input character cannot guarantee cross-chunk redaction. A partial `person@` must remain withheld until it is safe to classify. The design trades at most one bounded candidate's delay for that guarantee. The real-socket test checks that ordinary text reaches the client before the provider finishes.

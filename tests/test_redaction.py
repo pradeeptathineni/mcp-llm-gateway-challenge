@@ -15,6 +15,9 @@ class RedactionTests(unittest.TestCase):
     def test_every_split(self):
         """Produce identical safe text at every possible two-chunk boundary."""
         cases = (
+            ("Order 12 12name@example.com", "Order 12 [REDACTED]"),
+            ("card=4111 1111 1111 1111", "card=[REDACTED]"),
+            ("$4111 1111 1111 1111", "$[REDACTED]"),
             ("Mail person@example.com now", "Mail [REDACTED] now"),
             ("SSN 123-45-6789", "SSN [REDACTED]"),
             ("Card 4111 1111 1111 1111.", "Card [REDACTED]."),
@@ -129,4 +132,42 @@ class StreamTests(unittest.IsolatedAsyncioTestCase):
         generator = guarded_stream(httpx.Response(200, stream=stream))
         self.assertIn(b"Hello", await anext(generator))
         await generator.aclose()
+        self.assertTrue(stream.closed)
+
+    async def test_coalesced_events_are_individually_bounded(self):
+        """Accept many small events even if one network chunk exceeds the event cap."""
+        frame = b'data: {"choices":[{"delta":{"content":"safe "}}]}\n\n'
+        data = frame * 2000 + b"data: [DONE]\n\n"
+        self.assertGreater(len(data), 65536)
+        stream = BytesStream([data])
+        output = b"".join(
+            [item async for item in guarded_stream(httpx.Response(200, stream=stream))]
+        )
+        self.assertNotIn(b"upstream_stream_error", output)
+        self.assertIn(b'"done": true', output)
+
+    async def test_output_budget_closes_overproducing_stream(self):
+        """A provider ignoring max_tokens cannot escape its conservative reservation."""
+        frame = b'data: {"choices":[{"delta":{"content":"safe "}}]}\n\n'
+        stream = BytesStream([frame] * 100)
+        output = b"".join(
+            [
+                item
+                async for item in guarded_stream(
+                    httpx.Response(200, stream=stream), max_output_bytes=10
+                )
+            ]
+        )
+        self.assertIn(b"upstream_stream_error", output)
+        self.assertNotIn(b'"done": true', output)
+        self.assertEqual(output.count(b'"delta"'), 2)
+        self.assertTrue(stream.closed)
+
+    async def test_empty_data_lines_are_bounded(self):
+        """Count framing even when every data field contains an empty string."""
+        stream = BytesStream([b"data:\n" * 20000])
+        result = b"".join(
+            [item async for item in guarded_stream(httpx.Response(200, stream=stream))]
+        )
+        self.assertIn(b"upstream_stream_error", result)
         self.assertTrue(stream.closed)

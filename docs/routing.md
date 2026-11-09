@@ -27,6 +27,8 @@ SQLite contains reservation IDs, hashed tenant identifiers, epoch timestamps, an
 
 `/v1/completions` wraps the entire primary request, including response-body consumption, in a 3000 ms async deadline. HTTP 429 or timeout closes/cancels that attempt before contacting the backup. The backup has its own bounded deadline. Other HTTP errors are not retried. No fallback text is spliced into a partial primary stream.
 
+Streaming also enforces a UTF-8 output-byte ceiling equal to `max_tokens`. This is deliberately stricter than a model token count and prevents a provider that ignores its requested limit from escaping admission. Overproduction closes the provider and emits a safe error.
+
 The streaming route has no model failover after output starts. It retains its budget and emits a safe error event if the provider fails. This avoids mixing two generations after the client has received text.
 
 Public errors use one stable `error.code` and `error.message` shape. Quota exhaustion returns HTTP 429 and `Retry-After`. Database failures return HTTP 503, provider failures HTTP 502, and invalid requests HTTP 400. Raw upstream bodies, stack traces, credentials, and exception strings are never included.

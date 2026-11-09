@@ -24,12 +24,12 @@ class Redactor:
         self.buffer = ""
         self.mode = ""
         self.discard = False
-        self.has_space = False
         self.max_buffered = 0
+        self.last_char = ""
 
     def _append(self, char: str) -> str:
         """Emit one marker before suppressing an oversized unfinished candidate."""
-        self.has_space |= char.isspace()
+        self.last_char = char
         if self.discard:
             return ""
         if len(self.buffer) == self.limit:
@@ -46,7 +46,7 @@ class Redactor:
         self.buffer = ""
         self.mode = ""
         self.discard = False
-        self.has_space = False
+        self.last_char = ""
         return result
 
     def feed(self, text: str) -> str:
@@ -62,13 +62,20 @@ class Redactor:
             elif self.mode == "atom":
                 if char in ATOM:
                     output.append(self._append(char))
+                elif char in " \t\r\n" and self.last_char in "0123456789":
+                    # Keep a numeric suffix even when its first group follows an atom prefix
+                    suffix = re.search(r"[0-9][0-9-]*$", self.buffer)
+                    if not self.discard and suffix:
+                        output.append(PATTERNS.sub("[REDACTED]", self.buffer[: suffix.start()]))
+                        self.buffer = suffix.group()
+                    self.mode = "number"
+                    output.append(self._append(char))
                 else:
                     output.extend((self.finish(), char))
             elif char in "0123456789- \t\r\n":
                 output.append(self._append(char))
             elif char in ATOM:
-                if self.has_space:
-                    output.append(self.finish())
+                # Retain earlier numeric groups until the following token is classified
                 self.mode = "atom"
                 output.append(self._append(char))
             else:

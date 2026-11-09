@@ -62,6 +62,13 @@ class HttpTests(unittest.IsolatedAsyncioTestCase):
                         "Hello café. Contact [REDACTED], SSN [REDACTED], card [REDACTED]. Done.",
                     )
                     self.assertLess(first - start, elapsed * 0.8)
+                    capped = await client.post(
+                        proxy + "/v1/stream",
+                        json={"prompt": "demo", "max_tokens": 1},
+                        headers={"Authorization": "Bearer demo-viewer-token"},
+                    )
+                    self.assertIn("upstream_stream_error", capped.text)
+                    self.assertNotIn('"done": true', capped.text)
 
     async def test_completion_fallback(self):
         """Verify the default three-second deadline through independent HTTP services."""

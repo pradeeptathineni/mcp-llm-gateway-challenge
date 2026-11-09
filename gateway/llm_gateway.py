@@ -77,7 +77,7 @@ def create_app(
             await response.aclose()
             return gateway_error("provider_unavailable", "Provider unavailable", 502)
         return StreamingResponse(
-            guarded_stream(response),
+            guarded_stream(response, max_output_bytes=payload.max_tokens),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )
