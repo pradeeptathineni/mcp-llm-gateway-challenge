@@ -1,0 +1,12 @@
+# Local Python outputs and runtime data
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.coverage
+htmlcov/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+.env
+.DS_Store
