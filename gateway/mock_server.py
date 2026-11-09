@@ -46,6 +46,34 @@ async def stream(request: Request):
     return StreamingResponse(chunks(), media_type="text/event-stream")
 
 
+async def complete(request: Request):
+    """Simulate primary throttling, a deadline miss, or a deterministic completion."""
+    payload = await request.json()
+    if request.url.path == "/primary":
+        if payload["prompt"] == "primary-rate-limit":
+            return JSONResponse({"error": "private upstream detail"}, status_code=429)
+        if payload["prompt"] == "primary-timeout":
+            await asyncio.sleep(3.2)
+    text = "Synthetic completion."
+    input_tokens = len(payload["prompt"].encode())
+    output_tokens = min(8, payload.get("max_tokens", 256))
+    return JSONResponse(
+        {
+            "choices": [{"message": {"content": text}}],
+            "usage": {
+                "prompt_tokens": input_tokens,
+                "completion_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
+        }
+    )
+
+
 app = Starlette(
-    routes=[Route("/mcp", mcp, methods=["POST"]), Route("/stream", stream, methods=["POST"])]
+    routes=[
+        Route("/mcp", mcp, methods=["POST"]),
+        Route("/stream", stream, methods=["POST"]),
+        Route("/primary", complete, methods=["POST"]),
+        Route("/backup", complete, methods=["POST"]),
+    ]
 )
