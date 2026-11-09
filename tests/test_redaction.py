@@ -15,6 +15,9 @@ class RedactionTests(unittest.TestCase):
     def test_every_split(self):
         """Produce identical safe text at every possible two-chunk boundary."""
         cases = (
+            ("card=4111- 1111 1111 1111", "card=[REDACTED]"),
+            ("$4111- 1111 1111 1111", "$[REDACTED]"),
+            ("card=4111-- \n1111 1111 1111", "card=[REDACTED]"),
             ("Order 12 12name@example.com", "Order 12 [REDACTED]"),
             ("card=4111 1111 1111 1111", "card=[REDACTED]"),
             ("$4111 1111 1111 1111", "$[REDACTED]"),
