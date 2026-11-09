@@ -14,3 +14,7 @@ make check
 ```
 
 Each capability includes protocol-level checks and a documented local workflow. See [requirements](docs/requirements.md) for the acceptance map.
+
+## Customer tools
+
+Run `uv run --locked python -m gateway.mcp_server` with an MCP stdio client. [Protocol and validation details](docs/mcp-server.md) explain the synthetic fixtures and error boundaries.
