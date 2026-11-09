@@ -23,3 +23,4 @@ Run `uv run --locked python -m gateway.mcp_server` with an MCP stdio client. [Pr
 
 - [MCP security proxy](docs/mcp-proxy.md): bearer roles and transparent tool forwarding.
 - [Streaming guardrail](docs/streaming.md): bounded cross-chunk redaction and SSE cleanup.
+- [Rate limiting and fallback](docs/routing.md): shared SQLite admission and bounded provider attempts.

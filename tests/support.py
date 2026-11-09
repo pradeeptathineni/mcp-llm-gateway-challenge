@@ -4,6 +4,7 @@ import asyncio
 import os
 import socket
 import sys
+import tempfile
 from contextlib import asynccontextmanager
 
 import httpx
@@ -12,6 +13,7 @@ import httpx
 @asynccontextmanager
 async def running_server(module, environment=None):
     """Reserve the listener before spawning and always terminate the child."""
+    folder = tempfile.TemporaryDirectory()
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen()
@@ -27,7 +29,11 @@ async def running_server(module, environment=None):
         "warning",
         "--no-access-log",
         pass_fds=(listener.fileno(),),
-        env={**os.environ, **(environment or {})},
+        env={
+            **os.environ,
+            "GATEWAY_DATABASE": folder.name + "/quota.sqlite3",
+            **(environment or {}),
+        },
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -55,3 +61,4 @@ async def running_server(module, environment=None):
                 process.kill()
                 await process.wait()
         await process.communicate()
+        folder.cleanup()

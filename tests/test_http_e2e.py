@@ -62,3 +62,29 @@ class HttpTests(unittest.IsolatedAsyncioTestCase):
                         "Hello café. Contact [REDACTED], SSN [REDACTED], card [REDACTED]. Done.",
                     )
                     self.assertLess(first - start, elapsed * 0.8)
+
+    async def test_completion_fallback(self):
+        """Verify the default three-second deadline through independent HTTP services."""
+        async with running_server("gateway.mock_server:app") as downstream:
+            environment = {
+                "LLM_PRIMARY_URL": downstream + "/primary",
+                "LLM_BACKUP_URL": downstream + "/backup",
+            }
+            async with running_server("gateway.llm_gateway:app", environment) as proxy:
+                async with httpx.AsyncClient(trust_env=False, timeout=10) as client:
+                    headers = {"Authorization": "Bearer demo-viewer-token"}
+                    for prompt, expected in (
+                        ("demo", "primary"),
+                        ("primary-rate-limit", "backup"),
+                        ("primary-timeout", "backup"),
+                    ):
+                        start = time.monotonic()
+                        response = await client.post(
+                            proxy + "/v1/completions", json={"prompt": prompt}, headers=headers
+                        )
+                        elapsed = time.monotonic() - start
+                        self.assertEqual(response.status_code, 200)
+                        self.assertEqual(response.json()["model"], expected)
+                        if prompt == "primary-timeout":
+                            self.assertGreaterEqual(elapsed, 2.9)
+                            self.assertLess(elapsed, 5)
