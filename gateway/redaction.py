@@ -62,14 +62,17 @@ class Redactor:
             elif self.mode == "atom":
                 if char in ATOM:
                     output.append(self._append(char))
-                elif char in " \t\r\n" and self.last_char in "0123456789":
+                elif char in " \t\r\n" and self.last_char in "0123456789-":
                     # Keep a numeric suffix even when its first group follows an atom prefix
                     suffix = re.search(r"[0-9][0-9-]*$", self.buffer)
-                    if not self.discard and suffix:
-                        output.append(PATTERNS.sub("[REDACTED]", self.buffer[: suffix.start()]))
-                        self.buffer = suffix.group()
-                    self.mode = "number"
-                    output.append(self._append(char))
+                    if self.discard or suffix:
+                        if not self.discard:
+                            output.append(PATTERNS.sub("[REDACTED]", self.buffer[: suffix.start()]))
+                            self.buffer = suffix.group()
+                        self.mode = "number"
+                        output.append(self._append(char))
+                    else:
+                        output.extend((self.finish(), char))
                 else:
                     output.extend((self.finish(), char))
             elif char in "0123456789- \t\r\n":
