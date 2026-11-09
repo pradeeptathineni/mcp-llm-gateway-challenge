@@ -6,7 +6,7 @@ The examples use synthetic customer records and mock providers. Refunds are simu
 
 ## Development
 
-Use Python 3.12 or later and [uv](https://docs.astral.sh/uv/).
+Use Python 3.12 or 3.13 on macOS or Linux and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync --locked
@@ -24,3 +24,9 @@ Run `uv run --locked python -m gateway.mcp_server` with an MCP stdio client. [Pr
 - [MCP security proxy](docs/mcp-proxy.md): bearer roles and transparent tool forwarding.
 - [Streaming guardrail](docs/streaming.md): bounded cross-chunk redaction and SSE cleanup.
 - [Rate limiting and fallback](docs/routing.md): shared SQLite admission and bounded provider attempts.
+
+## Design and verification
+
+Read the [architecture and operations guide](docs/architecture.md) for component ownership and deployment boundaries. The [verification record](docs/verification.md) distinguishes tested local behavior from work that still needs an external environment.
+
+All defaults run against local synthetic fixtures. No cloud spending or real model credentials are required. The examples are intentionally loopback-only and are not production deployments.

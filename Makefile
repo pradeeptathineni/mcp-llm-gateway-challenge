@@ -14,3 +14,8 @@ lint:
 
 # Keep the aggregate gate reproducible
 check: lint test
+
+# Scan committed history while preserving the default detector rules
+.PHONY: secret-check
+secret-check:
+	gitleaks git --redact --no-banner .
