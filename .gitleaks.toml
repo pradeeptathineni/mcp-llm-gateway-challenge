@@ -1,0 +1,10 @@
+# Keep the full default rules and narrowly recognize public localhost fixtures
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public demo bearer tokens in the three local walkthroughs"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^docs/(mcp-proxy|streaming|routing)\.md$''']
+regexes = ['''Authorization: Bearer demo-(viewer|admin)-token''']
