@@ -4,12 +4,14 @@ import asyncio
 import json
 import sys
 import unittest
+from unittest.mock import patch
 
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
+from mcp.shared.exceptions import McpError
 from pydantic import ValidationError
 
-from gateway.mcp_server import CustomerInput, RefundInput
+from gateway.mcp_server import CustomerInput, RefundInput, safe_call_tool
 
 
 class SchemaTests(unittest.TestCase):
@@ -139,3 +141,22 @@ class StdioTests(unittest.IsolatedAsyncioTestCase):
             if process.returncode is None:
                 process.kill()
                 await process.wait()
+
+    async def test_unexpected_tool_error_is_sanitized(self):
+        """Do not expose exception details through the SDK's fallback error path."""
+        request = types.CallToolRequest(
+            method="tools/call",
+            params=types.CallToolRequestParams(
+                name="trigger_refund",
+                arguments={
+                    "customer_id": "CUST-00001",
+                    "amount": 1.0,
+                    "reason": "Valid reason here",
+                },
+            ),
+        )
+        with patch("gateway.mcp_server.uuid4", side_effect=RuntimeError("private credential")):
+            with self.assertRaises(McpError) as caught:
+                await safe_call_tool(request)
+        self.assertEqual(caught.exception.error.code, -32603)
+        self.assertNotIn("private", caught.exception.error.message)

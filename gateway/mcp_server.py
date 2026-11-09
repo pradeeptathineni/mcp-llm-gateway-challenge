@@ -97,9 +97,20 @@ async def call_tool(request: types.CallToolRequest) -> types.ServerResult:
     )
 
 
+async def safe_call_tool(request: types.CallToolRequest) -> types.ServerResult:
+    """Keep unexpected execution failures out of protocol responses and diagnostics."""
+    try:
+        return await call_tool(request)
+    except McpError:
+        raise
+    except Exception:
+        logging.getLogger(__name__).error("Tool execution failed")
+        raise McpError(types.ErrorData(code=-32603, message="Internal tool error")) from None
+
+
 # The SDK's call_tool decorator converts exceptions into isError results
 # Register the typed handler directly to preserve the required -32602 wire error
-server.request_handlers[types.CallToolRequest] = call_tool
+server.request_handlers[types.CallToolRequest] = safe_call_tool
 
 
 async def run() -> None:

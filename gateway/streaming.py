@@ -21,23 +21,28 @@ async def sse_data(response: httpx.Response, limit: int = 65_536) -> AsyncIterat
     data = []
     size = 0
     async for chunk in response.aiter_bytes():
-        pending += decoder.decode(chunk)
-        if len(pending) > limit:
-            raise StreamFailure("Provider event exceeded limit")
-        while "\n" in pending:
-            line, pending = pending.split("\n", 1)
-            line = line.removesuffix("\r")
-            if not line:
-                if data:
-                    yield "\n".join(data)
-                data = []
-                size = 0
-            elif line.startswith("data:"):
-                value = line[5:].removeprefix(" ")
-                size += len(value)
-                if size > limit:
-                    raise StreamFailure("Provider event exceeded limit")
-                data.append(value)
+        # HTTP chunks are not SSE frames and may contain many valid events
+        for offset in range(0, len(chunk), 1024):
+            pending += decoder.decode(chunk[offset : offset + 1024])
+            while "\n" in pending:
+                line, pending = pending.split("\n", 1)
+                line = line.removesuffix("\r")
+                if len(line.encode()) > limit:
+                    raise StreamFailure("Provider line exceeded limit")
+                if not line:
+                    if data:
+                        yield "\n".join(data)
+                    data = []
+                    size = 0
+                else:
+                    # Count framing too, so repeated empty data lines remain bounded
+                    size += len(line.encode()) + 1
+                    if size > limit:
+                        raise StreamFailure("Provider event exceeded limit")
+                    if line.startswith("data:"):
+                        data.append(line[5:].removeprefix(" "))
+            if len(pending.encode()) > limit:
+                raise StreamFailure("Provider line exceeded limit")
     pending += decoder.decode(b"", final=True)
     if pending or data:
         raise StreamFailure("Truncated provider event")
@@ -49,9 +54,12 @@ def event(payload: dict, name: str | None = None) -> bytes:
     return (prefix + "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n").encode()
 
 
-async def guarded_stream(response: httpx.Response) -> AsyncIterator[bytes]:
+async def guarded_stream(
+    response: httpx.Response, max_output_bytes: int | None = None
+) -> AsyncIterator[bytes]:
     """Close the upstream on completion, errors, cancellation, or client disconnect."""
     redactor = Redactor()
+    output_bytes = 0
     try:
         async for data in sse_data(response):
             if data == "[DONE]":
@@ -76,6 +84,9 @@ async def guarded_stream(response: httpx.Response) -> AsyncIterator[bytes]:
                 continue
             if not isinstance(content, str):
                 raise StreamFailure("Invalid provider content")
+            output_bytes += len(content.encode())
+            if max_output_bytes is not None and output_bytes > max_output_bytes:
+                raise StreamFailure("Provider output exceeded reservation")
             safe = redactor.feed(content)
             if safe:
                 yield event({"delta": safe})
