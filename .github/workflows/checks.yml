@@ -3,6 +3,7 @@ name: Checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 # Validation needs no repository write access
 permissions:
